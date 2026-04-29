@@ -1,0 +1,146 @@
+name: build
+
+on:
+  workflow_dispatch:
+    inputs:
+      php_version:
+        description: "PHP version to build (e.g. 8.4.20)"
+        required: true
+        default: "8.4.20"
+
+env:
+  # Extensions that cover Laravel/Symfony and most modern PHP projects.
+  EXTENSIONS: >-
+    bcmath,calendar,ctype,curl,dom,fileinfo,filter,iconv,
+    mbstring,mysqlnd,mysqli,openssl,pdo,pdo_mysql,pdo_sqlite,
+    phar,posix,readline,session,simplexml,sockets,sodium,
+    tokenizer,xml,xmlreader,xmlwriter,zip,zlib
+
+jobs:
+  build:
+    name: php-${{ inputs.php_version }} (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-14
+            spc_os: macos
+            spc_arch: aarch64
+          - target: x86_64-apple-darwin
+            runner: macos-13
+            spc_os: macos
+            spc_arch: x86_64
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+            spc_os: linux
+            spc_arch: x86_64
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-latest
+            spc_os: linux
+            spc_arch: aarch64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install prerequisites (macOS)
+        if: runner.os == 'macOS'
+        run: brew install automake autoconf libtool cmake pkg-config
+
+      - name: install prerequisites (Linux cross aarch64)
+        if: matrix.spc_arch == 'aarch64' && runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+      - name: download static-php-cli
+        run: |
+          set -euo pipefail
+          SPC_VERSION="2.8.5"
+          case "${{ matrix.spc_os }}-${{ matrix.spc_arch }}" in
+            linux-x86_64)  asset="spc-linux-x86_64.tar.gz" ;;
+            linux-aarch64) asset="spc-linux-x86_64.tar.gz" ;;  # host is x86_64
+            macos-aarch64) asset="spc-macos-aarch64.tar.gz" ;;
+            macos-x86_64)  asset="spc-macos-x86_64.tar.gz" ;;
+          esac
+          curl -fsSL "https://github.com/crazywhalecc/static-php-cli/releases/download/${SPC_VERSION}/${asset}" | tar xz
+          chmod +x spc
+          ./spc --version
+
+      - name: download PHP source + dependencies
+        run: |
+          ./spc download --with-php=${{ inputs.php_version }} \
+            --for-extensions="${EXTENSIONS}" \
+            --prefer-pre-built
+
+      - name: build static PHP
+        run: |
+          ./spc build "${EXTENSIONS}" \
+            --build-cli \
+            --with-micro=no \
+            --arch=${{ matrix.spc_arch }}
+
+      - name: verify
+        run: |
+          ls -lh buildroot/bin/php
+          buildroot/bin/php -v
+          buildroot/bin/php -m
+          # Quick sanity check
+          buildroot/bin/php -r 'echo "PHP " . PHP_VERSION . " OK\n";'
+
+      - name: package
+        env:
+          PHP_VERSION: ${{ inputs.php_version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          stage="php-${PHP_VERSION}-${TARGET}"
+          mkdir -p "dist/${stage}"
+          cp buildroot/bin/php "dist/${stage}/php"
+          cp LICENSE "dist/${stage}/"
+          cd dist
+          tar -czf "${stage}.tar.gz" "${stage}"
+          shasum -a 256 "${stage}.tar.gz" > "${stage}.tar.gz.sha256"
+          cat "${stage}.tar.gz.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: php-${{ matrix.target }}
+          path: dist/*.tar.gz*
+          retention-days: 7
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: list artifacts
+        run: ls -la dist/
+
+      - name: combined checksums
+        run: cd dist && shasum -a 256 *.tar.gz > SHA256SUMS && cat SHA256SUMS
+
+      - name: publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: php-${{ inputs.php_version }}
+          name: PHP ${{ inputs.php_version }}
+          body: |
+            Static PHP ${{ inputs.php_version }} binaries.
+            Built with [static-php-cli](https://github.com/crazywhalecc/static-php-cli).
+
+            **Included extensions**: ${{ env.EXTENSIONS }}
+          files: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+            dist/SHA256SUMS
