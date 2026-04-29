@@ -34,7 +34,13 @@ jobs:
 
       - name: install prerequisites (macOS)
         if: runner.os == 'macOS'
-        run: brew install automake autoconf libtool cmake pkg-config
+        run: brew install automake autoconf libtool cmake pkg-config || true
+
+      - name: install prerequisites (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config cmake autoconf automake libtool
 
       - name: download static-php-cli
         run: |
@@ -50,6 +56,9 @@ jobs:
           ./spc download --with-php=${{ inputs.php_version }} \
             --for-extensions="${EXTENSIONS}" \
             --prefer-pre-built
+
+      - name: fix spc environment
+        run: ./spc doctor --auto-fix || true
 
       - name: build static PHP
         run: ./spc build "${EXTENSIONS}" --build-cli
