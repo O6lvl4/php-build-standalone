@@ -7,46 +7,31 @@ on:
     - cron: "0 6 * * 1"
 
 jobs:
-  resolve:
-    name: resolve latest versions
+  dispatch:
+    name: dispatch builds for new versions
     runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.versions.outputs.matrix }}
     steps:
-      - name: fetch latest patch for each active branch
-        id: versions
+      - name: resolve and dispatch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # PHP active branches: 8.2, 8.3, 8.4 (+ 8.5 when GA)
-          versions=""
+          repo="${{ github.repository }}"
+          dispatched=0
           for branch in 8.2 8.3 8.4; do
             ver=$(curl -fsSL "https://www.php.net/releases/index.php?json&version=${branch}" \
               | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])" 2>/dev/null || true)
-            if [ -n "$ver" ]; then
-              # Skip if release already exists
-              if gh release view "php-${ver}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-                echo "php-${ver} already released, skipping"
-              else
-                versions="${versions:+$versions,}\"${ver}\""
-              fi
+            if [ -z "$ver" ]; then
+              echo "⚠ Could not resolve latest for PHP ${branch}"
+              continue
             fi
+            if gh release view "php-${ver}" --repo "$repo" >/dev/null 2>&1; then
+              echo "✓ php-${ver} already released, skipping"
+              continue
+            fi
+            echo "→ Dispatching build for PHP ${ver}"
+            gh workflow run build.yml --repo "$repo" --field "php_version=${ver}"
+            dispatched=$((dispatched + 1))
+            sleep 5
           done
-          if [ -z "$versions" ]; then
-            echo "matrix={\"version\":[]}" >> "$GITHUB_OUTPUT"
-          else
-            echo "matrix={\"version\":[${versions}]}" >> "$GITHUB_OUTPUT"
-          fi
-          cat "$GITHUB_OUTPUT"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build:
-    name: build php-${{ matrix.version }}
-    needs: resolve
-    if: ${{ fromJson(needs.resolve.outputs.matrix).version[0] != null }}
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.resolve.outputs.matrix) }}
-    uses: ./.github/workflows/build.yml
-    with:
-      php_version: ${{ matrix.version }}
+          echo "Dispatched ${dispatched} build(s)"
