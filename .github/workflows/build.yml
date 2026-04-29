@@ -9,7 +9,7 @@ on:
         default: "8.4.20"
 
 env:
-  EXTENSIONS: "bcmath,calendar,ctype,curl,dom,fileinfo,filter,iconv,mbstring,mysqlnd,mysqli,openssl,pdo,pdo_mysql,pdo_sqlite,phar,posix,readline,session,simplexml,sockets,sodium,tokenizer,xml,xmlreader,xmlwriter,zip,zlib"
+  EXTENSIONS: "bcmath,calendar,ctype,curl,dom,fileinfo,filter,iconv,mbregex,mbstring,mysqlnd,mysqli,openssl,pdo,pdo_mysql,pdo_sqlite,phar,posix,readline,session,simplexml,sockets,sodium,tokenizer,xml,xmlreader,xmlwriter,zip,zlib"
 
 jobs:
   build:
