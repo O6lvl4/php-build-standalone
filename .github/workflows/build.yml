@@ -10,11 +10,7 @@ on:
 
 env:
   # Extensions that cover Laravel/Symfony and most modern PHP projects.
-  EXTENSIONS: >-
-    bcmath,calendar,ctype,curl,dom,fileinfo,filter,iconv,
-    mbstring,mysqlnd,mysqli,openssl,pdo,pdo_mysql,pdo_sqlite,
-    phar,posix,readline,session,simplexml,sockets,sodium,
-    tokenizer,xml,xmlreader,xmlwriter,zip,zlib
+  EXTENSIONS: "bcmath,calendar,ctype,curl,dom,fileinfo,filter,iconv,mbstring,mysqlnd,mysqli,openssl,pdo,pdo_mysql,pdo_sqlite,phar,posix,readline,session,simplexml,sockets,sodium,tokenizer,xml,xmlreader,xmlwriter,zip,zlib"
 
 jobs:
   build:
@@ -78,7 +74,6 @@ jobs:
         run: |
           ./spc build "${EXTENSIONS}" \
             --build-cli \
-            --with-micro=no \
             --arch=${{ matrix.spc_arch }}
 
       - name: verify
