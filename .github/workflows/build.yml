@@ -7,6 +7,11 @@ on:
         description: "PHP version to build (e.g. 8.4.20)"
         required: true
         default: "8.4.20"
+  workflow_call:
+    inputs:
+      php_version:
+        required: true
+        type: string
 
 env:
   EXTENSIONS: "bcmath,calendar,ctype,curl,dom,fileinfo,filter,iconv,mbstring,mysqlnd,mysqli,openssl,pdo,pdo_mysql,pdo_sqlite,phar,posix,readline,session,simplexml,sockets,sodium,tokenizer,xml,xmlreader,xmlwriter,zip,zlib"
