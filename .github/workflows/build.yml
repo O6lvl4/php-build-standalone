@@ -9,7 +9,6 @@ on:
         default: "8.4.20"
 
 env:
-  # Extensions that cover Laravel/Symfony and most modern PHP projects.
   EXTENSIONS: "bcmath,calendar,ctype,curl,dom,fileinfo,filter,iconv,mbstring,mysqlnd,mysqli,openssl,pdo,pdo_mysql,pdo_sqlite,phar,posix,readline,session,simplexml,sockets,sodium,tokenizer,xml,xmlreader,xmlwriter,zip,zlib"
 
 jobs:
@@ -22,20 +21,13 @@ jobs:
         include:
           - target: aarch64-apple-darwin
             runner: macos-14
-            spc_os: macos
-            spc_arch: aarch64
+            spc_asset: spc-macos-aarch64.tar.gz
           - target: x86_64-apple-darwin
             runner: macos-13
-            spc_os: macos
-            spc_arch: x86_64
+            spc_asset: spc-macos-x86_64.tar.gz
           - target: x86_64-unknown-linux-musl
             runner: ubuntu-latest
-            spc_os: linux
-            spc_arch: x86_64
-          - target: aarch64-unknown-linux-musl
-            runner: ubuntu-latest
-            spc_os: linux
-            spc_arch: aarch64
+            spc_asset: spc-linux-x86_64.tar.gz
 
     steps:
       - uses: actions/checkout@v4
@@ -44,23 +36,10 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install automake autoconf libtool cmake pkg-config
 
-      - name: install prerequisites (Linux cross aarch64)
-        if: matrix.spc_arch == 'aarch64' && runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-
       - name: download static-php-cli
         run: |
           set -euo pipefail
-          SPC_VERSION="2.8.5"
-          case "${{ matrix.spc_os }}-${{ matrix.spc_arch }}" in
-            linux-x86_64)  asset="spc-linux-x86_64.tar.gz" ;;
-            linux-aarch64) asset="spc-linux-x86_64.tar.gz" ;;  # host is x86_64
-            macos-aarch64) asset="spc-macos-aarch64.tar.gz" ;;
-            macos-x86_64)  asset="spc-macos-x86_64.tar.gz" ;;
-          esac
-          curl -fsSL "https://github.com/crazywhalecc/static-php-cli/releases/download/${SPC_VERSION}/${asset}" | tar xz
+          curl -fsSL "https://github.com/crazywhalecc/static-php-cli/releases/download/2.8.5/${{ matrix.spc_asset }}" | tar xz
           chmod +x spc
           ./spc --version
 
@@ -71,17 +50,13 @@ jobs:
             --prefer-pre-built
 
       - name: build static PHP
-        run: |
-          ./spc build "${EXTENSIONS}" \
-            --build-cli \
-            --arch=${{ matrix.spc_arch }}
+        run: ./spc build "${EXTENSIONS}" --build-cli
 
       - name: verify
         run: |
           ls -lh buildroot/bin/php
           buildroot/bin/php -v
           buildroot/bin/php -m
-          # Quick sanity check
           buildroot/bin/php -r 'echo "PHP " . PHP_VERSION . " OK\n";'
 
       - name: package
