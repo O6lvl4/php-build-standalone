@@ -44,6 +44,8 @@ jobs:
           ./spc --version
 
       - name: download PHP source + dependencies
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./spc download --with-php=${{ inputs.php_version }} \
             --for-extensions="${EXTENSIONS}" \
