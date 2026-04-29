@@ -6,6 +6,10 @@ on:
     # Weekly: check for new PHP releases and rebuild
     - cron: "0 6 * * 1"
 
+permissions:
+  actions: write
+  contents: read
+
 jobs:
   dispatch:
     name: dispatch builds for new versions
